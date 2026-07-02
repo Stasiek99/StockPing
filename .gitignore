@@ -1,3 +1,8 @@
 ARCHITECTURE.md
 ROADMAP.md
 .idea/
+
+node_modules/
+cdk.out/
+*.log
+.env

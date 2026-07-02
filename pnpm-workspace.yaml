@@ -1,0 +1,4 @@
+packages:
+  - infra
+  - lambdas
+  - legacy-express
