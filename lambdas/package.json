@@ -1,5 +1,22 @@
 {
   "name": "lambdas",
   "private": true,
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1080.0",
+    "@aws-sdk/lib-dynamodb": "^3.1080.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.155",
+    "@types/jest": "^30",
+    "@types/node": "^24.10.1",
+    "aws-sdk-client-mock": "^4.1.0",
+    "jest": "^30",
+    "ts-jest": "^29",
+    "typescript": "~5.9.3"
+  }
 }
