@@ -4,5 +4,6 @@ ROADMAP.md
 
 node_modules/
 cdk.out/
+dist/
 *.log
 .env
