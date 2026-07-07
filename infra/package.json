@@ -8,11 +8,13 @@
     "cdk": "cdk"
   },
   "devDependencies": {
+    "@aws-sdk/client-cloudformation": "^3.1080.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.1080.0",
     "@types/jest": "^30",
     "@types/node": "^24.10.1",
+    "aws-cdk": "2.1126.0",
     "jest": "^30",
     "ts-jest": "^29",
-    "aws-cdk": "2.1126.0",
     "ts-node": "^10.9.2",
     "typescript": "~5.9.3"
   },
