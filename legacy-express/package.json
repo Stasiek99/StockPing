@@ -1,5 +1,25 @@
 {
   "name": "legacy-express",
   "private": true,
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/server.ts",
+    "start": "node dist/server.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/jest": "^30",
+    "@types/node": "^24.10.1",
+    "@types/supertest": "^6.0.3",
+    "jest": "^30",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.9.3"
+  }
 }
