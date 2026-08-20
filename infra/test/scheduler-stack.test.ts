@@ -42,19 +42,22 @@ test('SchedulerStack triggers checkStockAndNotify on a 15-minute EventBridge sch
   expect(rule.Properties.Targets).toHaveLength(1);
 });
 
-test('checkStockAndNotify execution role is scoped to exactly Query and UpdateItem on the table (least privilege)', () => {
+test('checkStockAndNotify execution role is scoped to exactly Query on GSI1 and UpdateItem on the table (least privilege)', () => {
   const policies = template.findResources('AWS::IAM::Policy', {
     Properties: Match.objectLike({ PolicyName: Match.stringLikeRegexp('^CheckStockAndNotifyFn') }),
   });
 
   expect(Object.keys(policies)).toHaveLength(1);
   const [policy] = Object.values(policies) as any[];
-  const dynamoStatement = policy.Properties.PolicyDocument.Statement.find((stmt: any) =>
-    JSON.stringify(stmt.Action).includes('dynamodb:')
-  );
+  const statements = policy.Properties.PolicyDocument.Statement as any[];
 
-  expect(dynamoStatement.Action).toEqual(expect.arrayContaining(['dynamodb:Query', 'dynamodb:UpdateItem']));
-  expect(dynamoStatement.Action).toHaveLength(2);
+  const queryStatement = statements.find((stmt) => stmt.Action === 'dynamodb:Query');
+  expect(queryStatement).toBeDefined();
+  expect(JSON.stringify(queryStatement.Resource)).toContain('/index/GSI1');
+
+  const updateStatement = statements.find((stmt) => stmt.Action === 'dynamodb:UpdateItem');
+  expect(updateStatement).toBeDefined();
+  expect(JSON.stringify(updateStatement.Resource)).not.toContain('/index/');
 });
 
 test('checkStockAndNotify may only call cognito-idp:AdminGetUser, scoped to the AuthStack User Pool', () => {
@@ -70,7 +73,7 @@ test('checkStockAndNotify may only call cognito-idp:AdminGetUser, scoped to the 
   expect(JSON.stringify(cognitoStatement.Resource)).toContain('TestAuthStack');
 });
 
-test('checkStockAndNotify may only send email as the configured SES identity', () => {
+test('checkStockAndNotify may only send email (not raw MIME) as the configured SES identity', () => {
   const policies = template.findResources('AWS::IAM::Policy', {
     Properties: Match.objectLike({ PolicyName: Match.stringLikeRegexp('^CheckStockAndNotifyFn') }),
   });
@@ -79,7 +82,7 @@ test('checkStockAndNotify may only send email as the configured SES identity', (
     JSON.stringify(stmt.Action).includes('ses:SendEmail')
   );
 
-  expect(sesStatement.Action).toEqual(expect.arrayContaining(['ses:SendEmail', 'ses:SendRawEmail']));
+  expect(sesStatement.Action).toBe('ses:SendEmail');
   expect(JSON.stringify(sesStatement.Resource)).toContain('identity/notifications@example.com');
 });
 
@@ -87,4 +90,22 @@ test('no execution role in SchedulerStack is granted a service-wide wildcard act
   expect(templateJson).not.toContain('dynamodb:*');
   expect(templateJson).not.toContain('cognito-idp:*');
   expect(templateJson).not.toContain('"ses:*"');
+});
+
+test('checkStockAndNotify does not use the AWS-managed AWSLambdaBasicExecutionRole (account-wide logs:* wildcard)', () => {
+  expect(templateJson).not.toContain('AWSLambdaBasicExecutionRole');
+});
+
+test('checkStockAndNotify CloudWatch Logs permissions are scoped to its own log group, not the whole account', () => {
+  const policies = template.findResources('AWS::IAM::Policy', {
+    Properties: Match.objectLike({ PolicyName: Match.stringLikeRegexp('^CheckStockAndNotifyFn') }),
+  });
+  const [policy] = Object.values(policies) as any[];
+  const logsStatement = policy.Properties.PolicyDocument.Statement.find((stmt: any) =>
+    JSON.stringify(stmt.Action).includes('logs:')
+  );
+
+  expect(logsStatement).toBeDefined();
+  expect(logsStatement.Action).toEqual(expect.arrayContaining(['logs:CreateLogStream', 'logs:PutLogEvents']));
+  expect(JSON.stringify(logsStatement.Resource)).not.toBe('"arn:aws:logs:*:*:*"');
 });

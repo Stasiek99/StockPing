@@ -8,6 +8,8 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import { scopedLambdaLogging } from './scoped-lambda-logging';
 
 const LAMBDAS_DIR = path.join(__dirname, '..', '..', 'lambdas', 'src');
 
@@ -39,29 +41,45 @@ export class ApiStack extends cdk.Stack {
 
     const commonEnvironment = { TABLE_NAME: table.tableName };
 
+    const createWatchLogging = scopedLambdaLogging(this, 'CreateWatchFn');
     const createWatchFn = new NodejsFunction(this, 'CreateWatchFn', {
       entry: path.join(LAMBDAS_DIR, 'createWatch.ts'),
       handler: 'handler',
       runtime: lambda.Runtime.NODEJS_20_X,
       environment: commonEnvironment,
+      role: createWatchLogging.role,
+      logGroup: createWatchLogging.logGroup,
     });
-    table.grant(createWatchFn, 'dynamodb:PutItem');
+    // Scoped to the table only (no `/index/*`) — this Lambda never touches GSI1.
+    createWatchFn.addToRolePolicy(
+      new iam.PolicyStatement({ actions: ['dynamodb:PutItem'], resources: [table.tableArn] })
+    );
 
+    const listWatchesLogging = scopedLambdaLogging(this, 'ListWatchesFn');
     const listWatchesFn = new NodejsFunction(this, 'ListWatchesFn', {
       entry: path.join(LAMBDAS_DIR, 'listWatches.ts'),
       handler: 'handler',
       runtime: lambda.Runtime.NODEJS_20_X,
       environment: commonEnvironment,
+      role: listWatchesLogging.role,
+      logGroup: listWatchesLogging.logGroup,
     });
-    table.grant(listWatchesFn, 'dynamodb:Query');
+    listWatchesFn.addToRolePolicy(
+      new iam.PolicyStatement({ actions: ['dynamodb:Query'], resources: [table.tableArn] })
+    );
 
+    const deleteWatchLogging = scopedLambdaLogging(this, 'DeleteWatchFn');
     const deleteWatchFn = new NodejsFunction(this, 'DeleteWatchFn', {
       entry: path.join(LAMBDAS_DIR, 'deleteWatch.ts'),
       handler: 'handler',
       runtime: lambda.Runtime.NODEJS_20_X,
       environment: commonEnvironment,
+      role: deleteWatchLogging.role,
+      logGroup: deleteWatchLogging.logGroup,
     });
-    table.grant(deleteWatchFn, 'dynamodb:DeleteItem');
+    deleteWatchFn.addToRolePolicy(
+      new iam.PolicyStatement({ actions: ['dynamodb:DeleteItem'], resources: [table.tableArn] })
+    );
 
     this.httpApi.addRoutes({
       path: '/watches',
