@@ -87,12 +87,36 @@ test.each([
 
   expect(Object.keys(policies)).toHaveLength(1);
   const [policy] = Object.values(policies) as any[];
-  const statements = policy.Properties.PolicyDocument.Statement;
+  const statements = policy.Properties.PolicyDocument.Statement as any[];
 
-  expect(statements).toHaveLength(1);
-  expect(statements[0]).toMatchObject({ Action: expectedAction, Effect: 'Allow' });
+  // One statement for scoped CloudWatch Logs, one for the single DynamoDB action.
+  expect(statements).toHaveLength(2);
+  const dynamoStatement = statements.find((stmt) => JSON.stringify(stmt.Action).includes('dynamodb:'));
+  expect(dynamoStatement).toMatchObject({ Action: expectedAction, Effect: 'Allow' });
+  expect(JSON.stringify(dynamoStatement.Resource)).not.toContain('/index/');
 });
 
 test('no Lambda execution role is granted the dynamodb:* wildcard action', () => {
   expect(templateJson).not.toContain('dynamodb:*');
 });
+
+test('no Lambda in ApiStack uses the AWS-managed AWSLambdaBasicExecutionRole (account-wide logs:* wildcard)', () => {
+  expect(templateJson).not.toContain('AWSLambdaBasicExecutionRole');
+});
+
+test.each(['CreateWatchFn', 'ListWatchesFn', 'DeleteWatchFn'])(
+  "%s's CloudWatch Logs permissions are scoped to its own log group, not the whole account",
+  (functionIdPrefix) => {
+    const policies = template.findResources('AWS::IAM::Policy', {
+      Properties: Match.objectLike({ PolicyName: Match.stringLikeRegexp(`^${functionIdPrefix}`) }),
+    });
+    const [policy] = Object.values(policies) as any[];
+    const logsStatement = policy.Properties.PolicyDocument.Statement.find((stmt: any) =>
+      JSON.stringify(stmt.Action).includes('logs:')
+    );
+
+    expect(logsStatement).toBeDefined();
+    expect(logsStatement.Action).toEqual(expect.arrayContaining(['logs:CreateLogStream', 'logs:PutLogEvents']));
+    expect(JSON.stringify(logsStatement.Resource)).not.toBe('"arn:aws:logs:*:*:*"');
+  }
+);

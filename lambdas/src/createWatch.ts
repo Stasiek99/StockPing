@@ -3,23 +3,23 @@ import { PutCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb, TABLE_NAME } from './lib/ddb-client';
 import { getUserId } from './lib/auth';
 import { jsonResponse } from './lib/http';
+import { createLogger } from './lib/logger';
+import { createWatchBodySchema } from './lib/schemas';
+import { parseJsonBody } from './lib/validation';
 import { watchKey } from './lib/watch';
+
+const logger = createLogger('createWatch');
 
 export const handler = async (
   event: APIGatewayProxyEventV2WithJWTAuthorizer
 ): Promise<APIGatewayProxyStructuredResultV2> => {
   const userId = getUserId(event);
 
-  let productId: unknown;
-  try {
-    productId = event.body ? JSON.parse(event.body).productId : undefined;
-  } catch {
-    return jsonResponse(400, { message: 'Request body must be valid JSON' });
+  const parsed = parseJsonBody(createWatchBodySchema, event.body);
+  if (!parsed.success) {
+    return parsed.response;
   }
-
-  if (typeof productId !== 'string' || productId.trim().length === 0) {
-    return jsonResponse(400, { message: 'productId is required' });
-  }
+  const { productId } = parsed.data;
 
   const createdAt = new Date().toISOString();
 
@@ -41,11 +41,13 @@ export const handler = async (
     );
   } catch (err) {
     if ((err as { name?: string }).name === 'ConditionalCheckFailedException') {
+      logger.warn('watch already exists', { userId, productId });
       return jsonResponse(409, { message: 'Already watching this product' });
     }
-    console.error('createWatch failed', err);
+    logger.error('failed to create watch', err, { userId, productId });
     return jsonResponse(500, { message: 'Internal server error' });
   }
 
+  logger.info('watch created', { userId, productId });
   return jsonResponse(201, { productId, createdAt, notified: false });
 };

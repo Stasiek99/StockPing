@@ -3,7 +3,10 @@ import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb, TABLE_NAME } from './lib/ddb-client';
 import { getUserId } from './lib/auth';
 import { jsonResponse } from './lib/http';
+import { createLogger } from './lib/logger';
 import type { Watch } from './lib/watch';
+
+const logger = createLogger('listWatches');
 
 export const handler = async (
   event: APIGatewayProxyEventV2WithJWTAuthorizer
@@ -28,9 +31,10 @@ export const handler = async (
       notified: item.notified,
     }));
 
+    logger.info('watches listed', { userId, count: watches.length });
     return jsonResponse(200, { watches });
   } catch (err) {
-    console.error('listWatches failed', err);
+    logger.error('failed to list watches', err, { userId });
     return jsonResponse(500, { message: 'Internal server error' });
   }
 };

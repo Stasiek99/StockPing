@@ -48,6 +48,20 @@ test('rejects a non-JSON body with 400', async () => {
   expect(ddbMock.commandCalls(PutCommand)).toHaveLength(0);
 });
 
+test('rejects a non-string productId with 400 and never calls DynamoDB', async () => {
+  const result = await handler(buildEvent({ body: JSON.stringify({ productId: 42 }) }));
+
+  expect(result.statusCode).toBe(400);
+  expect(ddbMock.commandCalls(PutCommand)).toHaveLength(0);
+});
+
+test('rejects a whitespace-only productId with 400', async () => {
+  const result = await handler(buildEvent({ body: JSON.stringify({ productId: '   ' }) }));
+
+  expect(result.statusCode).toBe(400);
+  expect(ddbMock.commandCalls(PutCommand)).toHaveLength(0);
+});
+
 test('returns 409 when the watch already exists', async () => {
   const conditionalCheckFailed = Object.assign(new Error('conditional check failed'), {
     name: 'ConditionalCheckFailedException',
