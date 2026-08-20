@@ -3,17 +3,20 @@ import { DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb, TABLE_NAME } from './lib/ddb-client';
 import { getUserId } from './lib/auth';
 import { jsonResponse } from './lib/http';
+import { deleteWatchParamsSchema } from './lib/schemas';
+import { parseParams } from './lib/validation';
 import { watchKey } from './lib/watch';
 
 export const handler = async (
   event: APIGatewayProxyEventV2WithJWTAuthorizer
 ): Promise<APIGatewayProxyStructuredResultV2> => {
   const userId = getUserId(event);
-  const productId = event.pathParameters?.productId;
 
-  if (!productId) {
-    return jsonResponse(400, { message: 'productId path parameter is required' });
+  const parsed = parseParams(deleteWatchParamsSchema, event.pathParameters);
+  if (!parsed.success) {
+    return parsed.response;
   }
+  const { productId } = parsed.data;
 
   try {
     const result = await ddb.send(

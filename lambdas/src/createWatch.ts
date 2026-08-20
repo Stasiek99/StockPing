@@ -3,6 +3,8 @@ import { PutCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb, TABLE_NAME } from './lib/ddb-client';
 import { getUserId } from './lib/auth';
 import { jsonResponse } from './lib/http';
+import { createWatchBodySchema } from './lib/schemas';
+import { parseJsonBody } from './lib/validation';
 import { watchKey } from './lib/watch';
 
 export const handler = async (
@@ -10,16 +12,11 @@ export const handler = async (
 ): Promise<APIGatewayProxyStructuredResultV2> => {
   const userId = getUserId(event);
 
-  let productId: unknown;
-  try {
-    productId = event.body ? JSON.parse(event.body).productId : undefined;
-  } catch {
-    return jsonResponse(400, { message: 'Request body must be valid JSON' });
+  const parsed = parseJsonBody(createWatchBodySchema, event.body);
+  if (!parsed.success) {
+    return parsed.response;
   }
-
-  if (typeof productId !== 'string' || productId.trim().length === 0) {
-    return jsonResponse(400, { message: 'productId is required' });
-  }
+  const { productId } = parsed.data;
 
   const createdAt = new Date().toISOString();
 
