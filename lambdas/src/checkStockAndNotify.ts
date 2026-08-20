@@ -3,6 +3,7 @@ import { AdminGetUserCommand, CognitoIdentityProviderClient } from '@aws-sdk/cli
 import { SendEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import { ddb, TABLE_NAME } from './lib/ddb-client';
 import { requireEnv } from './lib/env';
+import { createLogger } from './lib/logger';
 
 const LEGACY_API_URL = requireEnv('LEGACY_API_URL');
 const USER_POOL_ID = requireEnv('USER_POOL_ID');
@@ -10,6 +11,7 @@ const SES_FROM_EMAIL = requireEnv('SES_FROM_EMAIL');
 
 const cognito = new CognitoIdentityProviderClient({});
 const ses = new SESClient({});
+const logger = createLogger('checkStockAndNotify');
 
 interface Product {
   id: string;
@@ -19,6 +21,7 @@ interface Product {
 
 export const handler = async (): Promise<void> => {
   const restocked = await fetchRestockedProducts();
+  logger.info('checked legacy stock', { restockedCount: restocked.length });
 
   for (const product of restocked) {
     await notifyWatchers(product);
@@ -59,7 +62,7 @@ async function notifyWatcher(product: Product, pk: string, sk: string): Promise<
   const userId = pk.replace('USER#', '');
 
   const email = await getUserEmail(userId).catch((err: unknown) => {
-    console.error('checkStockAndNotify: failed to resolve watcher email', { userId, err });
+    logger.error('failed to resolve watcher email', err, { userId });
     return undefined;
   });
 
@@ -83,7 +86,7 @@ async function notifyWatcher(product: Product, pk: string, sk: string): Promise<
       })
     );
   } catch (err) {
-    console.error('checkStockAndNotify: failed to send email', { userId, productId: product.id, err });
+    logger.error('failed to send restock email', err, { userId, productId: product.id });
     return;
   }
 
@@ -95,6 +98,8 @@ async function notifyWatcher(product: Product, pk: string, sk: string): Promise<
       ExpressionAttributeValues: { ':true': true },
     })
   );
+
+  logger.info('watcher notified', { userId, productId: product.id });
 }
 
 async function getUserEmail(userId: string): Promise<string | undefined> {

@@ -3,9 +3,12 @@ import { PutCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb, TABLE_NAME } from './lib/ddb-client';
 import { getUserId } from './lib/auth';
 import { jsonResponse } from './lib/http';
+import { createLogger } from './lib/logger';
 import { createWatchBodySchema } from './lib/schemas';
 import { parseJsonBody } from './lib/validation';
 import { watchKey } from './lib/watch';
+
+const logger = createLogger('createWatch');
 
 export const handler = async (
   event: APIGatewayProxyEventV2WithJWTAuthorizer
@@ -38,11 +41,13 @@ export const handler = async (
     );
   } catch (err) {
     if ((err as { name?: string }).name === 'ConditionalCheckFailedException') {
+      logger.warn('watch already exists', { userId, productId });
       return jsonResponse(409, { message: 'Already watching this product' });
     }
-    console.error('createWatch failed', err);
+    logger.error('failed to create watch', err, { userId, productId });
     return jsonResponse(500, { message: 'Internal server error' });
   }
 
+  logger.info('watch created', { userId, productId });
   return jsonResponse(201, { productId, createdAt, notified: false });
 };
